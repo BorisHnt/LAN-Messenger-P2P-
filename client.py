@@ -189,6 +189,9 @@ class DiscoveryService:
         room = RoomEntry(name=name, port=port, private=private, creator=creator, code="")
         key = self._room_key(room)
         with self.lock:
+            existing = self.rooms.get(key)
+            if existing and existing.creator == self.peer_id:
+                return
             self.rooms[key] = room
         self._notify()
 
@@ -209,7 +212,7 @@ class DiscoveryService:
             self._notify()
 
     def _room_key(self, room: RoomEntry) -> str:
-        return f"{room.name}|{room.port}|{room.creator}"
+        return f"{room.name}|{room.port}"
 
     def _notify(self) -> None:
         if self.on_rooms_changed:
