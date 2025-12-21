@@ -311,6 +311,8 @@ class BroadcastPeer:
 
     def _presence_loop(self) -> None:
         while self.running:
+            if self.on_presence:
+                self.on_presence(self.peer_id, self.name)
             self._send({"type": "presence"})
             time.sleep(5)
 
