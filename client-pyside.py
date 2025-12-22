@@ -177,9 +177,8 @@ class DiscoveryService:
                 continue
             except OSError:
                 break
-            try:
-                payload = json.loads(data.decode("utf-8"))
-            except (json.JSONDecodeError, UnicodeDecodeError):
+            payload = self._decode(data)
+            if not payload:
                 continue
 
             msg_type = payload.get("type")
