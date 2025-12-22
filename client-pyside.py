@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
@@ -174,8 +174,9 @@ class DiscoveryService:
                 continue
             except OSError:
                 break
-            payload = self._decode(data)
-            if not payload:
+            try:
+                payload = json.loads(data.decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError):
                 continue
 
             msg_type = payload.get("type")
@@ -292,6 +293,9 @@ class BroadcastPeer:
 
     def send_chat(self, text: str) -> None:
         self._send({"type": "chat", "text": text})
+
+    def send_typing(self, active: bool) -> None:
+        self._send({"type": "typing", "active": active})
 
     def stop(self, announce: bool = True) -> None:
         if not self.running:
@@ -620,7 +624,7 @@ class MessengerWindow(QMainWindow):
     def _load_buffer(self, session: SessionState) -> None:
         self.text_area.setPlainText("\n".join(session.buffer))
         cursor = self.text_area.textCursor()
-        cursor.movePosition(cursor.End)
+        cursor.movePosition(QTextCursor.MoveOperation.End)
         self.text_area.setTextCursor(cursor)
 
     def _append_to_session(self, key: tuple[int, str, str], message: str) -> None:
@@ -631,7 +635,7 @@ class MessengerWindow(QMainWindow):
         if key == self.current_session_key:
             self.text_area.append(message)
             cursor = self.text_area.textCursor()
-            cursor.movePosition(cursor.End)
+            cursor.movePosition(QTextCursor.MoveOperation.End)
             self.text_area.setTextCursor(cursor)
 
     # ------------- Networking callbacks -------------
