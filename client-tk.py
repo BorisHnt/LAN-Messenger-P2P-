@@ -145,6 +145,12 @@ class DiscoveryService:
         except OSError:
             pass
 
+    def _decode(self, data: bytes) -> Optional[dict]:
+        try:
+            return json.loads(data.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return None
+
     def _recv_loop(self) -> None:
         assert self.sock is not None
         while self.running:
