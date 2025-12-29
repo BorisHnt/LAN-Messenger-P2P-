@@ -29,6 +29,9 @@ If you prefer Tkinter and it is available on your system:
 ```bash
 python client-tk.py
 ```
+
+## Default room
+- At startup every client automatically creates and announces a public room `42 Global` on port `4242` (no code). You can still create other rooms or launch with `--port/--room/--code` to use different settings.
 ## Run by VSCode
 - Open one client inside **VSCode** and just run it.
 

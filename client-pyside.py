@@ -12,6 +12,10 @@ from dataclasses import dataclass
 from typing import Optional
 from p2p_server import BroadcastPeer, DiscoveryService, RoomEntry
 
+AUTO_ROOM_PORT = 4242
+AUTO_ROOM_NAME = "42 Global"
+AUTO_ROOM_CODE = ""
+
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QTextCursor
 from PySide6.QtWidgets import (
@@ -58,10 +62,10 @@ class MessengerWindow(QMainWindow):
 
     def __init__(
         self,
-        default_port: int,
-        default_name: str,
-        default_room: str = "public",
-        default_code: str = "",
+        default_port: int = AUTO_ROOM_PORT,
+        default_name: str = "",
+        default_room: str = AUTO_ROOM_NAME,
+        default_code: str = AUTO_ROOM_CODE,
     ) -> None:
         super().__init__()
         self.setWindowTitle("LAN Messenger (PySide6)")
@@ -84,6 +88,7 @@ class MessengerWindow(QMainWindow):
         self.connected_ids: set[tuple[int, str]] = set()
 
         self._build_ui()
+        self._maybe_create_default_room()
         self._refresh_rooms_from_discovery()
         self.discovery.request_rooms()
 
@@ -518,6 +523,34 @@ class MessengerWindow(QMainWindow):
         )
         self.discovery.announce_room(room_entry)
 
+    def _port_is_available(self, port: int) -> bool:
+        test_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            test_sock.bind(("", port))
+            return True
+        except OSError:
+            return False
+        finally:
+            try:
+                test_sock.close()
+            except OSError:
+                pass
+
+    def _maybe_create_default_room(self) -> None:
+        """Create and announce the default room if the port is free."""
+        if not self._port_is_available(AUTO_ROOM_PORT):
+            print(f"[auto-room] Port {AUTO_ROOM_PORT} unavailable; default room not created.")
+            return
+        room = RoomEntry(
+            name=AUTO_ROOM_NAME,
+            port=AUTO_ROOM_PORT,
+            code=AUTO_ROOM_CODE,
+            private=False,
+            creator=self.peer_id,
+            local=True,
+        )
+        self.discovery.add_local_room(room)
+
     # ------------- Create/Delete room -------------
     def _open_create_room(self) -> None:
         dlg = QDialog(self)
@@ -548,17 +581,9 @@ class MessengerWindow(QMainWindow):
             QMessageBox.critical(self, "Invalid port", "Port must be a number.")
             return
 
-        test_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-            test_sock.bind(("", port))
-        except OSError:
+        if not self._port_is_available(port):
             QMessageBox.critical(self, "Port unavailable", f"Port {port} cannot be bound on this host.")
             return
-        finally:
-            try:
-                test_sock.close()
-            except OSError:
-                pass
 
         room = RoomEntry(
             name=room_name,
@@ -620,9 +645,9 @@ class MessengerWindow(QMainWindow):
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="PySide6 LAN messenger (peer-to-peer)")
-    parser.add_argument("--port", type=int, default=5050, help="UDP port shared by all peers")
-    parser.add_argument("--room", default="public", help="Room/channel name")
-    parser.add_argument("--code", default="", help="Private code (must match to receive)")
+    parser.add_argument("--port", type=int, default=AUTO_ROOM_PORT, help="UDP port shared by all peers")
+    parser.add_argument("--room", default=AUTO_ROOM_NAME, help="Room/channel name")
+    parser.add_argument("--code", default=AUTO_ROOM_CODE, help="Private code (must match to receive)")
     parser.add_argument("--name", default="", help="Display name")
     return parser.parse_args()
 

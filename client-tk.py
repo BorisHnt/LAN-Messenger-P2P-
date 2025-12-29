@@ -13,6 +13,10 @@ from tkinter import messagebox, ttk
 from typing import Optional
 from p2p_server import BroadcastPeer, DiscoveryService, RoomEntry
 
+AUTO_ROOM_PORT = 4242
+AUTO_ROOM_NAME = "42 Global"
+AUTO_ROOM_CODE = ""
+
 
 @dataclass
 class SessionState:
@@ -39,10 +43,10 @@ class MessengerApp:
     def __init__(
         self,
         root: tk.Tk,
-        default_port: int,
-        default_name: str,
-        default_room: str = "public",
-        default_code: str = "",
+        default_port: int = AUTO_ROOM_PORT,
+        default_name: str = "",
+        default_room: str = AUTO_ROOM_NAME,
+        default_code: str = AUTO_ROOM_CODE,
     ):
         self.root = root
         self.root.title("LAN Messenger (P2P)")
@@ -67,6 +71,7 @@ class MessengerApp:
         self.connected_ids: set[tuple[int, str]] = set()
 
         self._build_ui()
+        self._maybe_create_default_room()
         self._on_rooms_updated()
         self.discovery.request_rooms()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -510,6 +515,34 @@ class MessengerApp:
         )
         self.discovery.announce_room(room_entry)
 
+    def _port_is_available(self, port: int) -> bool:
+        test_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            test_sock.bind(("", port))
+            return True
+        except OSError:
+            return False
+        finally:
+            try:
+                test_sock.close()
+            except OSError:
+                pass
+
+    def _maybe_create_default_room(self) -> None:
+        """Create and announce the default room if the port is free."""
+        if not self._port_is_available(AUTO_ROOM_PORT):
+            print(f"[auto-room] Port {AUTO_ROOM_PORT} unavailable; default room not created.")
+            return
+        room = RoomEntry(
+            name=AUTO_ROOM_NAME,
+            port=AUTO_ROOM_PORT,
+            code=AUTO_ROOM_CODE,
+            private=False,
+            creator=self.peer_id,
+            local=True,
+        )
+        self.discovery.add_local_room(room)
+
     # ------------- Create/Delete room -------------
     def _open_create_room_window(self) -> None:
         if hasattr(self, "_create_win") and self._create_win is not None:
@@ -559,17 +592,9 @@ class MessengerApp:
             messagebox.showerror("Invalid port", "Port must be a number.")
             return
 
-        test_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        try:
-            test_sock.bind(("", port))
-        except OSError:
+        if not self._port_is_available(port):
             messagebox.showerror("Port unavailable", f"Port {port} cannot be bound on this host.")
             return
-        finally:
-            try:
-                test_sock.close()
-            except OSError:
-                pass
 
         room = RoomEntry(
             name=room_name,
@@ -638,9 +663,9 @@ class MessengerApp:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Tkinter LAN messenger (peer-to-peer)")
-    parser.add_argument("--port", type=int, default=5050, help="UDP port shared by all peers")
-    parser.add_argument("--room", default="public", help="Room/channel name")
-    parser.add_argument("--code", default="", help="Private code (must match to receive)")
+    parser.add_argument("--port", type=int, default=AUTO_ROOM_PORT, help="UDP port shared by all peers")
+    parser.add_argument("--room", default=AUTO_ROOM_NAME, help="Room/channel name")
+    parser.add_argument("--code", default=AUTO_ROOM_CODE, help="Private code (must match to receive)")
     parser.add_argument("--name", default="", help="Display name")
     return parser.parse_args()
 
