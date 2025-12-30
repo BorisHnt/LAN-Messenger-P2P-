@@ -36,7 +36,7 @@ python client-tk.py
 - Open one client inside **VSCode** and just run it.
 
 ## UI (both versions)
-- Left panel: discovered rooms (port/room) and a participants list. **Create Room** opens the room-creation window, **Delete** removes a room only if you created it and nobody is inside the room. Selecting a room shows known participants (requires the correct code for private rooms).
+- Left panel: discovered rooms (port/room) and a participants list. **Create Room** opens the room-creation window, **Delete Room** removes a room if you are the creator or the current admin (oldest participant); it also stops advertising and disconnects your local sessions for that room. Selecting a room shows known participants (requires the correct code for private rooms).
 - Room creation window: fields for Port / Room name / Code. **Create the Room** checks the port is free on your machine, saves the room locally, and broadcasts it to peers (without revealing the code).
 - Selecting a room fills the fields; set your nickname up top, then **Connect** / **Disconnect**.
 - Messages area + input box at bottom.
@@ -48,3 +48,5 @@ python client-tk.py
 - Traffic is basically encrypted; but it can be easily seen. Use only on trusted networks.
 - All peers must share the same port and room. If a `Code` is set, only peers using the identical code will see messages (it is not cryptographically secure).
 - Ensure your firewall allows UDP on the chosen port.
+- Discovery traffic is JSON wrapped in Base64 so all peers can parse it consistently.
+- Room ownership travels with the original creator, and if they leave the room, the admin role falls back to the oldest remaining participant for deletion rights.

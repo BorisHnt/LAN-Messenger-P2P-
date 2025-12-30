@@ -44,6 +44,7 @@ class SessionState:
     port: int
     room: str
     code: str
+    creator: str
     peer: "BroadcastPeer"
     buffer: list[str]
     presence: dict[str, dict]
@@ -119,7 +120,7 @@ class MessengerWindow(QMainWindow):
 
         btn_create = QPushButton("Create Room")
         btn_create.clicked.connect(self._open_create_room)
-        btn_delete = QPushButton("Delete")
+        btn_delete = QPushButton("Delete Room")
         btn_delete.clicked.connect(self._delete_room)
         left_layout.addWidget(btn_create)
         left_layout.addWidget(btn_delete)
@@ -304,6 +305,8 @@ class MessengerWindow(QMainWindow):
             return
 
         key = (port, room, code)
+        creator = self._resolve_room_creator(port, room)
+        now = time.time()
         session = self.sessions.get(key)
         if session and session.connected:
             self._set_active_session(key)
@@ -327,6 +330,7 @@ class MessengerWindow(QMainWindow):
             port=port,
             room=room,
             code=code,
+            creator=creator,
             peer=peer,
             buffer=[],
             presence={},
@@ -339,7 +343,7 @@ class MessengerWindow(QMainWindow):
             last_room_announce=time.time(),
             connected=True,
         )
-        session.presence[self.peer_id] = {"name": name, "last": time.time()}
+        session.presence[self.peer_id] = {"name": name, "last": now, "first": now}
         self.sessions[key] = session
         self.connected_ids.add((port, room))
         self._set_active_session(key)
@@ -347,23 +351,33 @@ class MessengerWindow(QMainWindow):
         self._append_to_session(key, "Connected. Peers on this port/room will see your messages.")
         self.message_entry.setFocus()
 
+    def _resolve_room_creator(self, port: int, room: str) -> str:
+        for entry in self.rooms:
+            if entry.port == port and entry.name == room:
+                return entry.creator
+        return self.peer_id
+
+    def _stop_session(self, key: tuple[int, str, str], announce: bool = True) -> None:
+        session = self.sessions.pop(key, None)
+        if session:
+            session.peer.send_typing(False)
+            session.peer.stop(announce=announce)
+            self.connected_ids.discard((session.port, session.room))
+        if self.current_session_key == key:
+            self.current_session_key = None
+            self.status_label.setText("Disconnected")
+            self.participants_list.clear()
+            self.typing_label.setText("")
+            self.text_area.clear()
+        self._update_ui_state()
+        self._refresh_room_list()
+
     def _disconnect(self) -> None:
         if not self.current_session_key:
             QMessageBox.warning(self, "Not connected", "Select a connected room first.")
             return
         key = self.current_session_key
-        session = self.sessions.pop(key, None)
-        if session:
-            session.peer.send_typing(False)
-            session.peer.stop(announce=True)
-        self.connected_ids.discard((key[0], key[1]))
-        self.current_session_key = None
-        self.status_label.setText("Disconnected")
-        self.participants_list.clear()
-        self.typing_label.setText("")
-        self.text_area.clear()
-        self._update_ui_state()
-        self._refresh_room_list()
+        self._stop_session(key)
 
     # ------------- Message sending -------------
     def _send_message(self) -> None:
@@ -446,7 +460,13 @@ class MessengerWindow(QMainWindow):
         session = self.sessions.get(key)
         if not session:
             return
-        session.presence[peer_id] = {"name": name, "last": time.time()}
+        now = time.time()
+        if peer_id not in session.presence:
+            session.presence[peer_id] = {"name": name, "last": now, "first": now}
+        else:
+            session.presence[peer_id]["name"] = name
+            session.presence[peer_id]["last"] = now
+            session.presence[peer_id].setdefault("first", now)
         if key == self.current_session_key:
             self._refresh_participants_display()
 
@@ -476,6 +496,16 @@ class MessengerWindow(QMainWindow):
         items = sorted(peers.items(), key=lambda item: (item[1]["name"].lower(), item[0]))
         for _, data in items:
             self.participants_list.addItem(data["name"])
+
+    def _session_admin(self, session: SessionState) -> Optional[str]:
+        if not session.presence:
+            return None
+        candidates = []
+        for pid, data in session.presence.items():
+            first_seen = data.get("first") or data.get("last") or 0.0
+            candidates.append((first_seen, pid))
+        candidates.sort(key=lambda item: (item[0], item[1]))
+        return candidates[0][1] if candidates else None
 
     # ------------- Poll loop -------------
     def _poll_messages(self) -> None:
@@ -519,7 +549,7 @@ class MessengerWindow(QMainWindow):
             name=session.room,
             port=session.port,
             private=bool(session.code),
-            creator=self.peer_id,
+            creator=session.creator,
         )
         self.discovery.announce_room(room_entry)
 
@@ -607,10 +637,20 @@ class MessengerWindow(QMainWindow):
             QMessageBox.warning(self, "No selection", "Select a room to delete.")
             return
         room = self.rooms[idx]
-        if room.creator != self.peer_id:
-            QMessageBox.warning(self, "Cannot delete", "Only the creator can delete this room.")
+        room_sessions = [s for s in self.sessions.values() if s.port == room.port and s.room == room.name]
+        session = room_sessions[0] if room_sessions else None
+        is_creator = room.creator == self.peer_id
+        is_admin = session and self._session_admin(session) == self.peer_id
+        if not (is_creator or is_admin):
+            QMessageBox.warning(
+                self,
+                "Cannot delete",
+                "Only the creator or the current admin (oldest participant) can delete this room.",
+            )
             return
         self.discovery.remove_room(room)
+        for sess in room_sessions:
+            self._stop_session(sess.key)
         self._refresh_rooms_from_discovery()
 
     # ------------- Cleanup / UI state -------------

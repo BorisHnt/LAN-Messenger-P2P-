@@ -125,17 +125,30 @@ class DiscoveryService:
     def _broadcast(self, payload: dict) -> None:
         if self.sock is None:
             return
+        data = self._encode(payload)
+        if data is None:
+            return
         try:
-            data = json.dumps(payload).encode("utf-8")
             self.sock.sendto(data, ("<broadcast>", self.DISCOVERY_PORT))
         except OSError:
             pass
 
+    def _encode(self, payload: dict) -> Optional[bytes]:
+        try:
+            raw = json.dumps(payload).encode("utf-8")
+        except (TypeError, ValueError):
+            return None
+        return base64.b64encode(raw)
+
     def _decode(self, data: bytes) -> Optional[dict]:
         try:
-            return json.loads(data.decode("utf-8"))
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            return None
+            decoded = base64.b64decode(data)
+            return json.loads(decoded.decode("utf-8"))
+        except Exception:
+            try:
+                return json.loads(data.decode("utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                return None
 
     def _recv_loop(self) -> None:
         assert self.sock is not None
