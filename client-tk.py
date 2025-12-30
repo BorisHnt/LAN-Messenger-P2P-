@@ -16,6 +16,7 @@ from p2p_server import BroadcastPeer, DiscoveryService, RoomEntry
 AUTO_ROOM_PORT = 4242
 AUTO_ROOM_NAME = "42 Global"
 AUTO_ROOM_CODE = ""
+APP_VERSION = "0.3.0"
 
 
 @dataclass
@@ -50,7 +51,7 @@ class MessengerApp:
         default_code: str = AUTO_ROOM_CODE,
     ):
         self.root = root
-        self.root.title("LAN Messenger (P2P)")
+        self.root.title(f"LAN Messenger (Tkinter) - v{APP_VERSION}")
         self.messages = queue.Queue()
         self.peer_id = uuid.uuid4().hex[:8]
         self._create_win: Optional[tk.Toplevel] = None

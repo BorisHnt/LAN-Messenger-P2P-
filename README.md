@@ -50,3 +50,23 @@ python client-tk.py
 - Ensure your firewall allows UDP on the chosen port.
 - Discovery traffic is JSON wrapped in Base64 so all peers can parse it consistently.
 - Room ownership travels with the original creator, and if they leave the room, the admin role falls back to the oldest remaining participant for deletion rights.
+
+## Changelog
+- 0.3.0:
+	- Discovery frames now Base64-encoded.
+	- Room creator/admin tracked so Delete works for creator or current admin and stops local advertising.
+	- Presence keeps oldest participant for admin fallback.
+- 0.2.4:
+	- Prototype Base64 encryption for messages.
+	- New GUI with PySide6.
+- 0.2.3:
+	- Private room support (code-protected rooms).
+	- Participant list per room implemented.
+- 0.2.1:
+	- Multi-room support (connect to several rooms at once).
+	- Separation between GUI clients (`client.py`) and shared networking module (`p2p_server.py`).
+- 0.2.0:
+	- Room system introduced (create/list/delete rooms).
+- 0.1.0:
+	- Initial release with simple LAN chat UI, no rooms.
+	- Creation of a graphical interface to communicate, using Tkinter (initial tests were done with a simple terminal-to-terminal connection).

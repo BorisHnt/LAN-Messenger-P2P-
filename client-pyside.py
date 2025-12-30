@@ -15,6 +15,7 @@ from p2p_server import BroadcastPeer, DiscoveryService, RoomEntry
 AUTO_ROOM_PORT = 4242
 AUTO_ROOM_NAME = "42 Global"
 AUTO_ROOM_CODE = ""
+APP_VERSION = "0.3.0"
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor, QTextCursor
@@ -69,7 +70,7 @@ class MessengerWindow(QMainWindow):
         default_code: str = AUTO_ROOM_CODE,
     ) -> None:
         super().__init__()
-        self.setWindowTitle("LAN Messenger (PySide6)")
+        self.setWindowTitle(f"LAN Messenger (PySide6) - v{APP_VERSION}")
         self.resize(1200, 800)
 
         self.messages = queue.Queue()
